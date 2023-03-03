@@ -11,28 +11,9 @@ import (
 	"github.com/thatpix3l/keeb/src/board"
 	"github.com/thatpix3l/keeb/src/keycode"
 	"github.com/thatpix3l/keeb/src/keymap"
+	"github.com/thatpix3l/keeb/src/npxl"
 	"github.com/thatpix3l/keeb/src/rgb"
-	"tinygo.org/x/drivers/ws2812"
 )
-
-// Get access to the onboard WS2812 RGB LED
-func newNeopixel(pin machine.Pin) *ws2812.Device {
-	pin.Configure(machine.PinConfig{Mode: machine.PinOutput})
-	newPin := ws2812.New(pin)
-	return &newPin
-}
-
-var npxl = newNeopixel(machine.GPIO25)
-
-// Change onboard LED color to blue
-func ledBlue() {
-	npxl.WriteColors([]color.RGBA{{R: 0, G: 0, B: 255}})
-}
-
-// Change onboard LED color to orange
-func ledOrange() {
-	npxl.WriteColors([]color.RGBA{{R: 255, G: 85, B: 0}})
-}
 
 // Create a callback that accepts a pin and configures it to the given mode
 func pinMode(mode machine.PinMode) func(machine.Pin) {
@@ -151,7 +132,7 @@ var ledColor = color.RGBA{0, 0, 0, 0}
 
 // Cycle onboard LED color in rainbow pattern
 func ledRainbow() {
-	npxl.WriteColors([]color.RGBA{ledColor})
+	npxl.Onboard.WriteColors([]color.RGBA{ledColor})
 	ledColor = rgb.Rainbow(ledColor)
 	time.Sleep(time.Second / 255)
 }
@@ -206,7 +187,7 @@ func main() {
 
 		// At this point, the user IS pressing the key and was NOT pressed before now
 
-		ledBlue()
+		npxl.Onboard.Blue()
 
 		for _, keyName := range key.Sequence {
 
@@ -235,7 +216,7 @@ func main() {
 
 		// At this point, the user is NOT pressing the key and WAS pressed before now
 
-		ledOrange()
+		npxl.Onboard.Orange()
 
 		for seqIdx := range key.Sequence {
 
