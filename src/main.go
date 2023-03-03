@@ -60,8 +60,8 @@ func isOdd(num int) bool {
 	return num%2 != 0
 }
 
-// Scan for connections from columns to rows
-func col2row(matrix [][]bool) [][]bool {
+// Algorithm for board pins between column-to-row and row-to-column.
+func japaneseDuplex(matrix [][]bool) [][]bool {
 
 	for keyRowIdx, keyRow := range matrix {
 
@@ -69,19 +69,27 @@ func col2row(matrix [][]bool) [][]bool {
 
 		for keyColIdx := range keyRow {
 
-			if isOdd(keyColIdx) {
-				continue
-			}
-
 			pinColIdx := int(float64(keyColIdx) / 2)
 			colPin := board.Config.ColPins[pinColIdx]
 
-			colPin.Configure(machine.PinConfig{Mode: machine.PinOutput})
-			colPin.High()
+			var outPin machine.Pin
+			var inPin machine.Pin
 
-			matrix[keyRowIdx][keyColIdx] = rowPin.Get()
+			if isEven(keyColIdx) {
+				outPin = colPin
+				inPin = rowPin
 
-			colPin.Configure(machine.PinConfig{Mode: machine.PinInputPulldown})
+			} else {
+				outPin = rowPin
+				inPin = colPin
+			}
+
+			outPin.Configure(machine.PinConfig{Mode: machine.PinOutput})
+			outPin.High()
+
+			matrix[keyRowIdx][keyColIdx] = inPin.Get()
+
+			outPin.Configure(machine.PinConfig{Mode: machine.PinInputPulldown})
 
 		}
 
@@ -91,40 +99,27 @@ func col2row(matrix [][]bool) [][]bool {
 
 }
 
-// Run multiple algorithms to check which keys were pressed, then accordingly activate onPress and onRelease callbacks
-func algoThenAct(matrix [][]bool, onPress pinKeyCallback, onRelease pinKeyCallback, scanFuncs ...func(matrix [][]bool) [][]bool) {
+// Scan, in one cycle, for pressed and released keys, using a given algorithm
+func (s *scanner) scanCycle(matrix [][]bool, algo func(matrix [][]bool) [][]bool) {
 
-	// For each scanning algorithm...
-	for _, algorithm := range scanFuncs {
+	board.Config.RowPins.ForEach(pinMode(machine.PinInputPulldown))
+	board.Config.ColPins.ForEach(pinMode(machine.PinInputPulldown))
 
-		// Check pins and assign appropriate "pressing" values
-		algorithm(matrix)
-
-	}
+	algo(matrix)
 
 	// After all the algorithms modified the matrix, check which are pressing right now
 	for row, colPressing := range matrix {
 		for col, pressing := range colPressing {
 
 			if pressing {
-				onPress(row, col)
+				s.onPress(row, col)
 
 			} else {
-				onRelease(row, col)
+				s.onRelease(row, col)
 			}
 
 		}
 	}
-
-}
-
-// Scan, in one cycle, for pressed and released keys
-func (s *scanner) scanCycle(keyMatrix [][]bool) {
-
-	board.Config.RowPins.ForEach(pinMode(machine.PinInputPulldown))
-	board.Config.ColPins.ForEach(pinMode(machine.PinInputPulldown))
-
-	algoThenAct(keyMatrix, s.onPress, s.onRelease, col2row)
 
 }
 
@@ -137,7 +132,6 @@ func initKeyMatrix() [][]bool {
 		newKeyMatrix = append(newKeyMatrix, []bool{})
 
 		for col := 0; col < board.Config.MaxKeysPerRow[row]; col++ {
-
 			newKeyMatrix[row] = append(newKeyMatrix[row], false)
 		}
 	}
@@ -149,7 +143,7 @@ func initKeyMatrix() [][]bool {
 func (s scanner) scanLoop() {
 	keyMatrix := initKeyMatrix()
 	for {
-		s.scanCycle(keyMatrix)
+		s.scanCycle(keyMatrix, japaneseDuplex)
 	}
 }
 
